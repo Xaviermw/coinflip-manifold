@@ -1,26 +1,44 @@
-import { getBets, getMarketBySlug, placeBet } from "./api";
-import pandas as pd
+import { getBets, getAllMarkets, placeBet } from "./api";
 
-const BET_AMOUNT = 25;
-const PROB_THESHOLD = 0.02;
-const REVERSION_FACTOR = 0.5;
+const TARGET_BET_AMOUNT = 5;
+const LOW_SAMPLE_BET_AMOUNT = 1;
+
 
 const main = async () => {
   const username = process.env.MANIFOLD_USERNAME;
   const key = process.env.MANIFOLD_API_KEY;
-  const slug = process.env.MANIFOLD_MARKET_SLUG;
 
   if (!username)
     throw new Error("Please set MANIFOLD_USERNAME variable in .env file.");
   if (!key)
     throw new Error("Please set MANIFOLD_API_KEY variable in .env file.");
 
-  console.log("Starting simple trading bot...");
+  var fs = require('fs');
 
-  const markets = await getAllMarkets(slug);
-  console.log(`Loaded market: ${market.question}\n`);
+  var target_no = fs.readFileSync('target_no.txt')
+      .toString() // convert Buffer to string
+      .split('\n') // split string to lines
+      .map(e => e.trim()) // remove white spaces for each line
+      .map(e => e.split(',').map(e => e.trim())) // split each line to array
+      .flat(2);
 
-  const contractId = market.id;
+  var target_yes = fs.readFileSync('target_yes.txt')
+      .toString() // convert Buffer to string
+      .split('\n') // split string to lines
+      .map(e => e.trim()) // remove white spaces for each line
+      .map(e => e.split(',').map(e => e.trim())) // split each line to array
+      .flat(2);
+
+  var balanced = fs.readFileSync('balanced.txt')
+      .toString() // convert Buffer to string
+      .split('\n') // split string to lines
+      .map(e => e.trim()) // remove white spaces for each line
+      .map(e => e.split(',').map(e => e.trim())) // split each line to array
+      .flat(2);
+
+  console.log("Starting coinflip trading bot...");
+
+  const markets = await getAllMarkets();
 
   let lastBetId: string | undefined = undefined;
   let lastProbability: number | undefined = undefined;
@@ -28,64 +46,8 @@ const main = async () => {
   while (true) {
     // poll every 15 seconds
     if (lastBetId !== undefined) await sleep(15 * 1000);
-
-    const loadedBets = await getBets({
-      contractSlug: slug,
-      limit: 5,
-    });
-
-    // filter out limit orders, redemptions, and antes
-    const newBets = loadedBets.filter(
-      (bet) => bet.amount > 0 && !bet.isRedemption && !bet.isAnte
-    );
-
-    if (newBets.length === 0) continue;
-
-    const newestBet = newBets[0];
-    if (
-      newestBet.id === lastBetId ||
-      newestBet.userUsername === username // exclude own bets
-    )
-      continue;
-
-    console.log(
-      `Loaded bet:`,
-      newestBet.userUsername,
-      newestBet.outcome,
-      `M${newestBet.amount}`,
-      `${roundProb(lastProbability ?? NaN) * 100}% => ${
-        roundProb(newestBet.probAfter) * 100
-      }%`,
-      new Date().toLocaleTimeString()
-    );
-
-    if (lastProbability) {
-      const diff = newestBet.probAfter - lastProbability;
-
-      if (Math.abs(diff) >= PROB_THESHOLD) {
-        const outcome = diff > 0 ? "NO" : "YES";
-        const limitProb = roundProb(REVERSION_FACTOR * diff + lastProbability);
-
-        const resultBet = await placeBet({
-          contractId,
-          amount: BET_AMOUNT,
-          outcome,
-          limitProb,
-        });
-
-        console.log(
-          `Bet placed:`,
-          resultBet.outcome,
-          `M${Math.floor(resultBet.amount)}`,
-          `${roundProb(newestBet.probAfter) * 100}% => ${
-            roundProb(limitProb) * 100
-          }%\n`
-        );
-      }
-    }
-
-    lastBetId = newestBet.id;
-    lastProbability = newestBet.probAfter;
+    const markets = await getAllMarkets();
+    
   }
 };
 
