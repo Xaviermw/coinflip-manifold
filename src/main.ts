@@ -41,7 +41,7 @@ const main = async () => {
               }
               if (!found) {
                 console.log("Target Isn't Known: ".concat(creator))
-              } else if (target_user.username == "Marketeer1") {
+              } else if (target_user.username == "Marketeer1" || target_user.username == "2suen") {
                 console.log("Avoiding Marketeer1")
               } else if (target_user.target == "Target Yes") {
                 console.log("Target Yes Bet Against ".concat(creator))
@@ -54,11 +54,12 @@ const main = async () => {
                     limitProb: 0.55
                   });
                   count_bets = count_bets + 1
+                  await sleep(BET_DELAY * 1000);
                 } else {
                   console.log("Starting Probability not 50%")
                 }
                 lastMarketId = market.id
-                await sleep(BET_DELAY * 1000);
+                
                 
               } else if (target_user.target == "Target No") {
                 console.log("Target No Bet Against ".concat(creator))
@@ -71,11 +72,12 @@ const main = async () => {
                     limitProb: 0.45
                   });
                   count_bets = count_bets + 1
+                  await sleep(BET_DELAY * 1000);
                 } else {
                   console.log("Starting Probability not 50%")
                 }
                 lastMarketId = market.id
-                await sleep(BET_DELAY * 1000);        
+                        
               } else if (target_user.target == "Balanced User") {
                 console.log("Target Is Balanced: ".concat(creator))
               } else {
