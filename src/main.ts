@@ -4,6 +4,7 @@ const TARGET_USERS = require('./targets.json');
 const TARGET_BET_AMOUNT = 5;
 const LOW_SAMPLE_BET_AMOUNT = 1;
 const BET_DELAY = 10
+const LIMIT_BARRIER = 0.05
 
 
 const main = async () => {
@@ -51,7 +52,7 @@ const main = async () => {
                     contractId: market.id,
                     amount: TARGET_BET_AMOUNT,
                     outcome: "YES",
-                    limitProb: 0.55
+                    limitProb: (.5 + LIMIT_BARRIER)
                   });
                   count_bets = count_bets + 1
                   await sleep(BET_DELAY * 1000);
@@ -59,8 +60,6 @@ const main = async () => {
                   console.log("Starting Probability not 50%")
                 }
                 lastMarketId = market.id
-                
-                
               } else if (target_user.target == "Target No") {
                 console.log("Target No Bet Against ".concat(creator))
                 console.log(market.question)
@@ -69,7 +68,7 @@ const main = async () => {
                     contractId: market.id,
                     amount: TARGET_BET_AMOUNT,
                     outcome: "NO",
-                    limitProb: 0.45
+                    limitProb: (.5 - LIMIT_BARRIER)
                   });
                   count_bets = count_bets + 1
                   await sleep(BET_DELAY * 1000);
@@ -81,7 +80,7 @@ const main = async () => {
               } else if (target_user.target == "Balanced User") {
                 console.log("Target Is Balanced: ".concat(creator))
               } else {
-                console.log("Target Isn't Known: ".concat(creator))
+                console.log("Target Has Low Sample Size: ".concat(creator))
               }
             }
           }
@@ -95,7 +94,7 @@ const main = async () => {
       console.log("Bets Made This Iteration: ".concat(count_bets.toString()))
       total_bets = total_bets + count_bets
       console.log("Bets Made Total Since Bot Run: ".concat(total_bets.toString()))
-      await sleep(BET_DELAY * 10 * 1000);  
+      await sleep(BET_DELAY * BET_DELAY * 1000);  
     }
   }
 };
