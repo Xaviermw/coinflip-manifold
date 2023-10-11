@@ -1,2 +1,4 @@
 node_modules
 .env
+./src/manifold_dump.json
+./src/targets.json
