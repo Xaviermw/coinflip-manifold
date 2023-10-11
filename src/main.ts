@@ -41,6 +41,8 @@ const main = async () => {
               }
               if (!found) {
                 console.log("Target Isn't Known: ".concat(creator))
+              } else if (target_user.username == "Marketeer1") {
+                console.log("Avoiding Marketeer1")
               } else if (target_user.target == "Target Yes") {
                 console.log("Target Yes Bet Against ".concat(creator))
                 console.log(market.question)
@@ -91,6 +93,7 @@ const main = async () => {
       console.log("Bets Made This Iteration: ".concat(count_bets.toString()))
       total_bets = total_bets + count_bets
       console.log("Bets Made Total Since Bot Run: ".concat(total_bets.toString()))
+      await sleep(BET_DELAY * 10 * 1000);  
     }
   }
 };
