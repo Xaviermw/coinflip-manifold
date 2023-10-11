@@ -1,7 +1,9 @@
 import { getBets, getAllMarkets, placeBet } from "./api";
 
+const TARGET_USERS = require('./targets.json'); 
 const TARGET_BET_AMOUNT = 5;
 const LOW_SAMPLE_BET_AMOUNT = 1;
+const BET_DELAY = 10
 
 
 const main = async () => {
@@ -15,39 +17,81 @@ const main = async () => {
 
   var fs = require('fs');
 
-  var target_no = fs.readFileSync('target_no.txt')
-      .toString() // convert Buffer to string
-      .split('\n') // split string to lines
-      .map(e => e.trim()) // remove white spaces for each line
-      .map(e => e.split(',').map(e => e.trim())) // split each line to array
-      .flat(2);
-
-  var target_yes = fs.readFileSync('target_yes.txt')
-      .toString() // convert Buffer to string
-      .split('\n') // split string to lines
-      .map(e => e.trim()) // remove white spaces for each line
-      .map(e => e.split(',').map(e => e.trim())) // split each line to array
-      .flat(2);
-
-  var balanced = fs.readFileSync('balanced.txt')
-      .toString() // convert Buffer to string
-      .split('\n') // split string to lines
-      .map(e => e.trim()) // remove white spaces for each line
-      .map(e => e.split(',').map(e => e.trim())) // split each line to array
-      .flat(2);
-
   console.log("Starting coinflip trading bot...");
-
-  const markets = await getAllMarkets();
-
-  let lastBetId: string | undefined = undefined;
-  let lastProbability: number | undefined = undefined;
-
+  let lastMarketId: string | undefined = undefined;
+  var total_bets = 0
   while (true) {
+    var count_bets = 0
     // poll every 15 seconds
-    if (lastBetId !== undefined) await sleep(15 * 1000);
-    const markets = await getAllMarkets();
-    
+    if (lastMarketId !== undefined) await sleep(BET_DELAY * 1000);
+    try {
+      const markets = await getAllMarkets();
+      for (let i = 0; i < markets.length; i++) {
+        var market = markets[i]
+        if (market.volume == 0) {
+          if (!market.isResolved && market.outcomeType == "BINARY") {
+            var creator = market.creatorUsername
+            if (!market.question.includes("Stock") && !market.question.includes("STOCK")) {
+              var found = false
+              for (let j = 0; j < TARGET_USERS.length; j++) {
+                if (TARGET_USERS[j].username == creator) {
+                  var target_user = TARGET_USERS[j]
+                  found = true
+                }
+              }
+              if (!found) {
+                console.log("Target Isn't Known: ".concat(creator))
+              } else if (target_user.target == "Target Yes") {
+                console.log("Target Yes Bet Against ".concat(creator))
+                console.log(market.question)
+                if (market.probability == .5) {
+                  await placeBet({
+                    contractId: market.id,
+                    amount: TARGET_BET_AMOUNT,
+                    outcome: "YES",
+                    limitProb: 0.55
+                  });
+                  count_bets = count_bets + 1
+                } else {
+                  console.log("Starting Probability not 50%")
+                }
+                lastMarketId = market.id
+                await sleep(BET_DELAY * 1000);
+                
+              } else if (target_user.target == "Target No") {
+                console.log("Target No Bet Against ".concat(creator))
+                console.log(market.question)
+                if (market.probability == .5) {
+                  await placeBet({
+                    contractId: market.id,
+                    amount: TARGET_BET_AMOUNT,
+                    outcome: "NO",
+                    limitProb: 0.45
+                  });
+                  count_bets = count_bets + 1
+                } else {
+                  console.log("Starting Probability not 50%")
+                }
+                lastMarketId = market.id
+                await sleep(BET_DELAY * 1000);        
+              } else if (target_user.target == "Balanced User") {
+                console.log("Target Is Balanced: ".concat(creator))
+              } else {
+                console.log("Target Isn't Known: ".concat(creator))
+              }
+            }
+          }
+        }
+      }
+    }
+    catch(err) {
+      console.log("Error: ".concat(err).concat("."));
+    }
+    finally {
+      console.log("Bets Made This Iteration: ".concat(count_bets.toString()))
+      total_bets = total_bets + count_bets
+      console.log("Bets Made Total Since Bot Run: ".concat(total_bets.toString()))
+    }
   }
 };
 
