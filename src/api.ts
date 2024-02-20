@@ -118,7 +118,7 @@ export const getFullMarket = async (id: string) => {
   return market;
 };
 
-const getMarkets = async (limit = 1000, before?: string) => {
+export const getMarkets = async (limit = 1000, before?: string) => {
   const markets: LiteMarket[] = await fetch(
     before
       ? `${API_URL}/markets?limit=${limit}&before=${before}`
