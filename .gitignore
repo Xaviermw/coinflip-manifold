@@ -9,4 +9,5 @@ node_modules
 /src/manifold_dump.json
 /src/targets.json
 /src/markets.json
+/src/rawdata.csv
 /src/bet_log.jsonl
