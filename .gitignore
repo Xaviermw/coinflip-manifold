@@ -1,4 +1,12 @@
 node_modules
 .env
+
+# R artifacts (project no longer uses R; targets are built in TypeScript)
+*.RData
+*.Rhistory
+
+# Local data dumps and runtime state
 /src/manifold_dump.json
 /src/targets.json
+/src/markets.json
+/src/bet_log.jsonl
