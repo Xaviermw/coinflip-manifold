@@ -1,5 +1,6 @@
 import { fetchAllResolvedBinaryMarkets } from "./api";
 import { wilsonInterval } from "./stats";
+import { deadlineInFuture } from "./text";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -31,10 +32,13 @@ async function main() {
   console.log("Fetching all resolved BINARY markets from Manifold...");
   const markets = await fetchAllResolvedBinaryMarkets();
 
+  // Exclude future-deadline markets (resolved early, YES-biased) so a creator's
+  // record isn't inflated by their open long-dated markets — same survivorship
+  // correction as the phrase analysis.
   const resolved = markets.filter(
-    (m) => m.resolution === "YES" || m.resolution === "NO"
+    (m) => (m.resolution === "YES" || m.resolution === "NO") && !deadlineInFuture(m.question)
   );
-  console.log(`${resolved.length} of ${markets.length} markets have a YES/NO resolution`);
+  console.log(`${resolved.length} of ${markets.length} markets have a settled YES/NO resolution`);
 
   // Count YES/NO resolutions per creator
   const counts = new Map<string, { YES: number; NO: number }>();

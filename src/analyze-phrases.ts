@@ -1,5 +1,5 @@
 import { fetchAllResolvedBinaryMarkets } from "./api";
-import { tokenize } from "./text";
+import { tokenize, deadlineInFuture } from "./text";
 import { wilsonInterval } from "./stats";
 import * as fs from "fs";
 import * as path from "path";
@@ -123,18 +123,14 @@ async function main() {
   console.log("Fetching all resolved BINARY markets from Manifold...");
   const markets = await fetchAllResolvedBinaryMarkets();
 
-  // Drop markets whose original deadline is still in the future. Those only
-  // appear in the resolved set because they resolved EARLY (usually YES), which
-  // makes future-dated phrases like "before 2030" look YES-biased — a pure
-  // survivorship artifact. Only markets past their deadline give an unbiased
-  // YES/NO ratio.
-  const now = Date.now();
+  // Drop markets whose stated deadline is still in the future — those resolved
+  // EARLY (usually YES) and are censored data, producing the "before 2030 =>
+  // YES" survivorship artifact. Deadline is parsed from the question text since
+  // closeTime is rewritten to the resolution time on early resolution.
   const resolved = markets.filter(
-    (m) =>
-      (m.resolution === "YES" || m.resolution === "NO") &&
-      (!m.closeTime || m.closeTime <= now)
+    (m) => (m.resolution === "YES" || m.resolution === "NO") && !deadlineInFuture(m.question)
   );
-  console.log(`${resolved.length} of ${markets.length} markets have a past-deadline YES/NO resolution`);
+  console.log(`${resolved.length} of ${markets.length} markets have a settled, past-deadline YES/NO resolution`);
 
   const leadingCounts = new Map<string, Counts>();
   const containsCounts = new Map<string, Counts>();
