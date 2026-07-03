@@ -21,7 +21,22 @@ type BetLogEntry = {
   betId: string;
   probBefore: number;
   probAfter: number;
+  // Present only on newer entries (older bets predate these fields):
+  shares?: number;
+  creatorOutcome?: "YES" | "NO" | null;
+  phraseOutcome?: "YES" | "NO" | null;
 };
+
+// Categorizes a bet by which signals actually fired, for true per-method
+// attribution. Falls back to `source` for older entries lacking the fields.
+function attribution(bet: BetLogEntry): "creator-only" | "phrase-only" | "both-agree" | `legacy-${string}` {
+  if (bet.creatorOutcome === undefined || bet.phraseOutcome === undefined) return `legacy-${bet.source}`;
+  const c = bet.creatorOutcome !== null;
+  const p = bet.phraseOutcome !== null;
+  if (c && p) return "both-agree";
+  if (c) return "creator-only";
+  return "phrase-only";
+}
 
 type Group = { staked: number; profit: number; wins: number; losses: number; pending: number };
 
@@ -29,13 +44,16 @@ function emptyGroup(): Group {
   return { staked: 0, profit: 0, wins: 0, losses: 0, pending: 0 };
 }
 
-// Estimate shares bought from the probability move. We only log amount +
-// probBefore/probAfter, not shares, so approximate the average fill price as the
-// midpoint of the move. Winning shares each pay out 1 mana.
+// Profit if the market resolves as given. Uses the exact fill shares when the
+// entry has them; older entries fall back to estimating shares from the average
+// fill price (midpoint of the probability move). Winning shares pay 1 mana each.
 function estimateProfit(bet: BetLogEntry, resolution: "YES" | "NO"): number {
-  const midProb = (bet.probBefore + bet.probAfter) / 2;
-  const price = bet.outcome === "YES" ? midProb : 1 - midProb;
-  const shares = price > 0 ? bet.amount / price : 0;
+  let shares = bet.shares;
+  if (shares === undefined) {
+    const midProb = (bet.probBefore + bet.probAfter) / 2;
+    const price = bet.outcome === "YES" ? midProb : 1 - midProb;
+    shares = price > 0 ? bet.amount / price : 0;
+  }
   return bet.outcome === resolution ? shares - bet.amount : -bet.amount;
 }
 
@@ -94,6 +112,7 @@ async function main() {
 
   const bySource = new Map<string, Group>();
   const byLabel = new Map<string, Group>();
+  const byAttribution = new Map<string, Group>();
   const overall = emptyGroup();
   let profitSum = 0;
 
@@ -104,6 +123,7 @@ async function main() {
 
     addTo(bySource, bet.source, bet.amount, profit);
     addTo(byLabel, `${bet.source}:${bet.label}`, bet.amount, profit);
+    addTo(byAttribution, attribution(bet), bet.amount, profit);
 
     overall.staked += bet.amount;
     if (profit === null) {
@@ -117,6 +137,7 @@ async function main() {
   }
 
   report("By strategy source", bySource);
+  report("By attribution (which signals fired)", byAttribution);
   report("By label (worst first)", byLabel);
 
   const settled = overall.wins + overall.losses;

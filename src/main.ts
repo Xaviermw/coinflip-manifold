@@ -61,12 +61,17 @@ type BetLogEntry = {
   creator: string;
   outcome: "YES" | "NO";
   amount: number;
-  source: "creator" | "phrase";
+  source: "creator" | "phrase"; // which signal drove the bet (creator wins ties)
   label: string;
   targetProb: number;
   betId: string;
+  shares: number; // exact shares from the fill, so P&L is exact rather than estimated
   probBefore: number;
   probAfter: number;
+  // What each signal independently said, so P&L can be attributed per method
+  // even when both fired (agreement bets are logged under source "creator").
+  creatorOutcome: "YES" | "NO" | null;
+  phraseOutcome: "YES" | "NO" | null;
 };
 
 function logBet(entry: BetLogEntry) {
@@ -248,8 +253,11 @@ async function placeSignalBet(market: LiteMarket, signal: Signal, maxBet: number
       label: signal.label,
       targetProb: signal.targetProb,
       betId: bet.id,
+      shares: bet.shares,
       probBefore: bet.probBefore,
       probAfter: bet.probAfter,
+      creatorOutcome: creatorSignal(market)?.outcome ?? null,
+      phraseOutcome: phraseSignal(market)?.outcome ?? null,
     });
     return true;
   } catch (err) {
