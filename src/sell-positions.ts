@@ -101,7 +101,25 @@ async function main() {
     if (EXECUTE) {
       try {
         const sold = await sellShares(entry.marketId, { outcome: entry.outcome });
-        console.log(`  -> sold: recovered ~${Math.abs(sold.amount).toFixed(0)} mana`);
+        const proceeds = Math.abs(sold.amount);
+        console.log(`  -> sold: recovered ~${proceeds.toFixed(0)} mana`);
+        // Record the sale so analyze-pnl can realize P&L on it instead of
+        // treating the position as still open / held to resolution.
+        fs.appendFileSync(
+          BET_LOG_PATH,
+          JSON.stringify({
+            type: "sell",
+            timestamp: Date.now(),
+            marketId: entry.marketId,
+            question: entry.question,
+            outcome: entry.outcome,
+            source: entry.source,
+            label: entry.label,
+            proceeds,
+            shares: Math.abs(sold.shares ?? 0),
+            betId: sold.id,
+          }) + "\n"
+        );
       } catch (err) {
         console.log(`  -> sell failed: ${err}`);
       }

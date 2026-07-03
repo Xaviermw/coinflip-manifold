@@ -90,9 +90,18 @@ async function main() {
     process.exit(1);
   }
 
-  const lines = fs.readFileSync(BET_LOG_PATH, "utf8").split("\n").filter(Boolean);
-  const bets: BetLogEntry[] = lines.map((l) => JSON.parse(l));
-  console.log(`Loaded ${bets.length} logged bets. Fetching resolutions...`);
+  const entries = fs.readFileSync(BET_LOG_PATH, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+  const bets: BetLogEntry[] = entries.filter((e) => e.type !== "sell");
+
+  // A position we sold before resolution is realized at the sale: profit =
+  // proceeds - stake, regardless of how the market later resolves. Key by
+  // marketId+outcome; sum in case a position was sold in pieces.
+  const sells = new Map<string, number>();
+  for (const e of entries.filter((e) => e.type === "sell")) {
+    const key = `${e.marketId}:${e.outcome}`;
+    sells.set(key, (sells.get(key) ?? 0) + e.proceeds);
+  }
+  console.log(`Loaded ${bets.length} bets and ${sells.size} sold positions. Fetching resolutions...`);
 
   // Cache resolutions so we hit each market only once.
   const resolutionCache = new Map<string, string | undefined>();
@@ -117,9 +126,16 @@ async function main() {
   let profitSum = 0;
 
   for (const bet of bets) {
-    const resolution = await resolutionFor(bet.marketId);
-    const settled = resolution === "YES" || resolution === "NO";
-    const profit = settled ? estimateProfit(bet, resolution as "YES" | "NO") : null;
+    // Sold positions are realized at the sale; resolution no longer matters.
+    const soldProceeds = sells.get(`${bet.marketId}:${bet.outcome}`);
+    let profit: number | null;
+    if (soldProceeds !== undefined) {
+      profit = soldProceeds - bet.amount;
+    } else {
+      const resolution = await resolutionFor(bet.marketId);
+      const settled = resolution === "YES" || resolution === "NO";
+      profit = settled ? estimateProfit(bet, resolution as "YES" | "NO") : null;
+    }
 
     addTo(bySource, bet.source, bet.amount, profit);
     addTo(byLabel, `${bet.source}:${bet.label}`, bet.amount, profit);
@@ -146,7 +162,8 @@ async function main() {
     `\n=== Overall ===\n` +
     `Realized profit: ${profitSum.toFixed(0)} mana | staked ${overall.staked.toFixed(0)} | ROI ${roi.toFixed(1)}%\n` +
     `${overall.wins}W-${overall.losses}L (${settled} settled, ${overall.pending} still open)\n` +
-    `Note: profit is estimated from the logged probability move, not exact fill shares.`
+    `Note: sold positions and newer bets use exact figures; older held-to-resolution\n` +
+    `bets estimate shares from the logged probability move.`
   );
 }
 
