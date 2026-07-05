@@ -30,7 +30,7 @@ npm install
 
 | Command | What it does |
 | --- | --- |
-| `npm start` | Runs the trading bot. Polls for new binary markets every 30s and bets on qualifying ones. |
+| `npm start` | Runs the trading bot. Polls for new binary markets every 30s and bets on qualifying ones. Also claims the free daily loan once per day. |
 | `npm run build-targets` | Rebuilds `new_targets.json` — the per-creator YES/NO bias table — from all resolved binary markets on Manifold. Takes a few minutes. |
 | `npm run analyze-phrases` | Rebuilds `phrase_targets.json` — the high-confidence phrase-bias table. Prints the top biased phrases as it goes. |
 | `npm run analyze-pnl` | Joins `bet_log.jsonl` against current market resolutions and reports realized ROI by strategy source and by label. Use it to see which signals actually make money. |
@@ -59,6 +59,7 @@ npm run sell-positions      # after a pipeline run: see positions on retired sig
 - Every bet is placed as a **limit order at the target price**, so bad sizing math can't overshoot.
 - Skips signals within 10% of 50/50 (not enough edge) and markets closing more than a year out (capital lock-up).
 - Every bet is appended to `bet_log.jsonl` for later analysis.
+- Claims the free daily loan (interest-free, auto-repaid from resolutions) once per day to keep capital working. Note this adds leverage: `me.balance` includes borrowed mana, so the 2% cap sizes off a loan-inflated balance.
 
 ## Data files
 

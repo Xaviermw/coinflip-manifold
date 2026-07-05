@@ -1,4 +1,4 @@
-import { searchMarkets, placeBet, getMe, LiteMarket } from "./api";
+import { searchMarkets, placeBet, getMe, getNextLoan, claimFreeLoan, LiteMarket } from "./api";
 import { tokenize } from "./text";
 import * as fs from "fs";
 import * as path from "path";
@@ -51,6 +51,8 @@ const MIN_BET = 1;
 const MAX_BET_FRACTION = 0.02; // never risk more than 2% of current balance on a single bet
 const MIN_EDGE = 0.1; // skip signals within 10% of 50/50 — the edge is too small to be worth the churn
 const MAX_HORIZON_MS = 365 * 24 * 60 * 60 * 1000; // skip markets closing more than a year out (capital lock-up)
+const LOAN_CLAIM_INTERVAL_MS = 23 * 60 * 60 * 1000; // attempt the free daily loan at most once per ~day
+const MIN_LOAN_CLAIM = 1; // don't bother claiming sub-mana amounts
 const STRATEGIES = parseStrategies();
 const BET_LOG_PATH = path.join(__dirname, "bet_log.jsonl");
 
@@ -154,6 +156,7 @@ const main = async () => {
 
   const seenMarkets = new Set<string>();
   let totalBets = 0;
+  let lastLoanClaimTime = 0; // 0 so we claim once right away on startup
 
   while (true) {
     let betsThisRound = 0;
@@ -162,6 +165,11 @@ const main = async () => {
         searchMarkets({ sort: "newest", filter: "open", contractType: "BINARY", limit: 100 }),
         getMe(),
       ]);
+
+      if (Date.now() - lastLoanClaimTime >= LOAN_CLAIM_INTERVAL_MS) {
+        lastLoanClaimTime = Date.now();
+        await claimDailyLoan(me.id);
+      }
 
       const maxBet = Math.floor(me.balance * MAX_BET_FRACTION);
       let newMarkets = 0;
@@ -263,6 +271,23 @@ async function placeSignalBet(market: LiteMarket, signal: Signal, maxBet: number
   } catch (err) {
     console.error(`  -> failed to place bet: ${err}`);
     return false;
+  }
+}
+
+// Claims the free daily loan (interest-free, auto-repaid from resolutions).
+// Best-effort: any failure is logged and swallowed so it never blocks trading.
+async function claimDailyLoan(userId: string): Promise<void> {
+  try {
+    const loan = await getNextLoan(userId);
+    if (!loan.canClaimFreeLoan || loan.freeLoanAvailable < MIN_LOAN_CLAIM) {
+      console.log(`No free loan to claim (available: ${loan.freeLoanAvailable.toFixed(2)})`);
+      return;
+    }
+    await claimFreeLoan();
+    const outstanding = loan.currentFreeLoan + loan.freeLoanAvailable;
+    console.log(`Claimed daily free loan: ${loan.freeLoanAvailable.toFixed(0)} mana (free loan outstanding now ~${outstanding.toFixed(0)})`);
+  } catch (err) {
+    console.error(`Loan claim failed: ${err}`);
   }
 }
 

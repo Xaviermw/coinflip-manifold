@@ -2,7 +2,8 @@ import "dotenv/config";
 
 const yourKey = process.env.MANIFOLD_API_KEY;
 
-const API_URL = "https://api.manifold.markets/v0";
+const BASE_URL = "https://api.manifold.markets";
+const API_URL = `${BASE_URL}/v0`;
 
 // Throws on non-2xx responses so callers don't silently parse an error body as
 // valid data (e.g. a failed getMe() turning maxBet into NaN).
@@ -164,6 +165,37 @@ export const getMe = async (): Promise<{ id: string; balance: number; username: 
   return fetch(`${API_URL}/me`, {
     headers: { Authorization: `Key ${yourKey}` },
   }).then((res) => parseJson<{ id: string; balance: number; username: string }>(res));
+};
+
+// Loan endpoints live at the bare host (no /v0) and are undocumented — they're
+// what the web app's "golden chest" daily-loan claim calls.
+export type LoanStatus = {
+  freeLoanAvailable: number; // free daily loan claimable right now
+  canClaimFreeLoan: boolean;
+  currentFreeLoan: number; // free loan already outstanding
+  currentMarginLoan: number;
+  availableToday: number;
+  dailyLimit: number;
+};
+
+export const getNextLoan = async (userId: string): Promise<LoanStatus> => {
+  return fetch(`${BASE_URL}/get-next-loan-amount?userId=${userId}`).then((res) =>
+    parseJson<LoanStatus>(res)
+  );
+};
+
+// Claims the free daily loan (the "golden chest"). Takes no params and is
+// available to all users — distinct from request-loan, which is the
+// members-only margin loan.
+export const claimFreeLoan = (): Promise<unknown> => {
+  return fetch(`${BASE_URL}/claim-free-loan`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Key ${yourKey}`,
+    },
+    body: JSON.stringify({}),
+  }).then((res) => parseJson<unknown>(res));
 };
 
 export const fetchAllResolvedBinaryMarkets = async (): Promise<LiteMarket[]> => {
